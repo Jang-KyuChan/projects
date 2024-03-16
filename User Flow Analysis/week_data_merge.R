@@ -21,5 +21,5 @@ for (i in 1:length(filenames)){
   }
 }
 
-write.csv(data, "big_data/230807-231010.csv") # update
+write.csv(data, "big_data/240101-240229.csv") # update
 
