@@ -1,0 +1,221 @@
+---
+title: "report_221006"
+output: html_document
+date: "2022-10-06"
+runtime: shiny
+---
+
+## **요약**
+
+* A. 퀘스트 기능 + 개선 방향성 : 미션 완료율 개선됨, 주간 방문 횟수 개선됨.
+* B. 찌르기 기능 + 개선 방향성 : 프로필 방문 횟수 증가함. KPI 도달하기 위한 추가 기획 필요.
+
+<br>
+
+## A. 퀘스트 기능 + 개선 방향성
+
+**배포일: 2022-09-16** <br>
+**가설: 퀘스트, 즉 하루에 할 일이 주어지면 주간 접속 횟수가 증가할 것이다.** <br>
+**KPI: 미션 완료율 60%, 주간 방문 횟수 3.50회** <br>
+<br>
+
+### 1. 스페셜 미션 완료율
+
+```{r include = FALSE}
+library(tidyverse)
+library(lubridate)
+options(warn=-1)
+```
+
+
+```{r echo = FALSE, message = FALSE}
+smCR = read.csv('quest_complete_rate_sample.csv') %>%
+  mutate(date = as.Date(date))
+
+smCR %>%
+  ggplot(aes(x=date, y=mission_active, group = 1))+
+  geom_line()+
+  ylim(c(0, 0.9)) +
+  geom_smooth(se = FALSE) +
+  labs(title = 'quest clear rate (active user)') +
+  geom_vline(xintercept = as.Date('2022-09-16'), color = 'red')+
+  geom_text(x = as.Date('2022-09-10'), y=0.03, label = 'quest release', color = 'red')
+```
+<br>
+
+* 유저 수 변화가 크지 않은 상태에서 **퀘스트 배포 이후 스페셜 미션 클리어율이 증가**하고 있는 추세입니다.
+* 7/21 개인화 배포 이후 시점 기준 현재 가장 높은 스페셜 미션 완료율을 보이고 있습니다.
+
+### 2. Study - Game Cycle 수
+
+```{r echo = FALSE}
+study_game_cycle_weekly = read.csv("study_game_cycle_weekly_sample.csv")
+
+study_game_cycle_weekly %>%
+  ggplot(aes(x=week, y=cycle))+
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = 37, color = 'red') +
+  geom_vline(xintercept = 35, color = 'purple') +
+  geom_text(aes(label = round(cycle, 2)), color = 'blue', nudge_y = 0.06) +
+  labs(title = 'Study-Game Cycle per week (active user)', subtitle = 'week 37 = 2022-09-12 ~ 2022-09-18')+
+  ylim(0, 2.8)
+
+```
+
+```{r echo = FALSE}
+study_game_cycle_weekly %>%
+  ggplot(aes(x=week, y=session))+
+  geom_line()+
+  geom_point()+
+  geom_vline(xintercept = 37, color = 'red') +
+  geom_vline(xintercept = 35, color = 'purple') +
+  geom_text(aes(label = round(session, 2)), color = 'blue', nudge_y = 0.3) +
+  labs(title = 'Study-Game Session per week(active)', subtitle = 'week 37 = 2022-09-12 ~ 2022-09-18')+
+  ylim(0, 14)
+```
+
+* <span style="color: purple;">**보라색**</span> = 액션구구 배포(9/1), <span style="color: red;">**빨간색**</span> = 퀘스트 배포(9/16) + 냥리갈리 배포(9/19).
+* **퀘스트 배포 이후 약간씩 상승추세**로 보입니다.
+* 지난 분석에서 *아케이드*라는 변수를 고려하지 못하여 *9월 데이터의 하락이 조금 더 두드려졌던 오류*가 있었습니다. 이번 분석에서는 이를 보정하였습니다.
+
+
+### 3. 1주 평균 방문 횟수
+
+주 1회 이상 방문 유저 기준 주당 방문 횟수입니다. *Lazy 유저들은 대다수 제외*됩니다.
+```{r echo = FALSE}
+visit_num = read.csv("visit_num_sample.csv")
+visit_num %>%
+  ggplot(aes(x=week, y=mean_visit, label = round(mean_visit, 2)))+
+  geom_line() +
+  geom_point() +
+  labs(title = 'Visit Frequency per 1 week (Active)', subtitle = '2022-06-27 ~ 2022-10-09', y = 'Visit Freq (Day)') +
+  geom_vline(xintercept = 37, color = 'red') +
+  geom_vline(xintercept = 35, color = 'purple') +
+  geom_text(nudge_y = 0.1, color = 'blue') +
+  ylim(0, 3.5)+
+  geom_text(x = 37.5, y=0.03, label = 'quest', color = 'red')+
+  geom_text(x = 35.7, y=0.03, label = 'gugudan', color = 'purple')
+  
+```
+
+* 주 평균 방문 횟수 역시 개선되고 있는 추세입니다.
+<br>
+
+**개선 방향성**
+
+* 전반적으로 퀘스트 배포 이후 시점으로 **주요 지표가 상당수 개선**되었습니다.
+* 퀘스트를 통해 스페셜 미션 완료율이 일부 증가하였습니다.
+* 다만 현재 인지된 이슈 - *맞춤화되지 않은 퀘스트 경험*이 명확히 양쪽으로 분리된 유저 경험 내에서 고정적인 퀘스트의 제시가 불편함을 초래할 수 있습니다. (10/4 분석 Customizing user vs Ranking user)
+* 퀘스트 완료율 증가를 위해 *퀘스트 리롤* 기능을 도입해볼 수 있을 것입니다.
+* 미션 완료율 60%의 경우 KPI에 도달하였습니다.
+* 주간 방문 3.50회의 경우 KPI에 도달하기 위한 추가 기획이 필요합니다.
+
+<br>
+<br>
+
+## B. 찌르기 기능 + 개선 방향성
+
+**배포일 : 2022-09-23** <br>
+**가설: 찌르기를 통해 프로필 방문이 증가할 것이다 **<br>
+**KPI : 내 프로필 일간 방문율 50%, 친구 프로필 일간 방문율 40%** <br>
+
+
+### 1. 찌르기 관련 주요 지표들
+
+```{r include = FALSE}
+poke_data = read.csv("poke_sample.csv")
+visit_data <- read.csv("visit_data_sample.csv") %>%
+  mutate(date = as.Date(date))
+user_type = read.csv("user_type_sample.csv")
+user_visit = read.csv('user_visit_sample.csv') %>%
+  mutate(date = as.Date(date))
+```
+
+```{r echo = FALSE, message = FALSE}
+total_visit = visit_data %>%
+  filter(date >= '2022-09-23') %>%
+  select(user_id) %>% unique() %>% pull() %>% length()
+
+poke_unique = poke_data %>%
+  filter(date >= '2022-09-23') %>%
+  select(user_id) %>% unique() %>% pull() %>% length()
+
+poke_user_table = data.frame(visit = c('poke', 'not_poke'), num = c(poke_unique, total_visit - poke_unique))
+poke_user_table %>%
+  ggplot(aes(x=visit, y=num, label = num))+geom_col() + geom_text(nudge_y = 3) +
+  labs(title = 'Poke User')
+```
+
+* 찌르기 1회 이상 사용 유저는 Active User 기준 25% 내외입니다.
+* 70%의 유저는 찌르기 기능을 모르거나, 사용하지 않습니다.
+* 찌르기 기능 인지에 대한 개선이 필요합니다.
+
+### 2. 프로필 방문 관련 지표
+
+```{r include = FALSE}
+profile_num = read.csv('profile_num_sample.csv')
+profile_unique = read.csv('profile_unique_sample.csv')
+```
+
+```{r echo = FALSE, message = FALSE}
+profile_unique[is.na(profile_unique)] = 0
+
+user_visit = user_visit %>%
+  group_by(date) %>% summarize(u_visit = sum(u_visit))
+
+profile_table = profile_unique %>%
+  mutate(date = as.Date(date)) %>%
+  select(-X) %>%
+  left_join(user_visit) %>%
+  filter(date >= '2022-09-09') %>%
+  group_by(release = (date >= '2022-09-23')) %>%
+  summarize(profile = sum(pageview.profile), profile.me = sum(pageview.profile.me), profile.update = sum(pageview.profile.update), u_visit = sum(u_visit)) %>%
+  transmute(release, profile = profile / u_visit, profile.me = profile.me/u_visit, profile.update = profile.update / u_visit)
+
+profile_release = data.frame(
+  release = rep(c("Before", "After"), each = 3), kind = rep(c('profile friend', 'my profile', 'update profile'), 2),
+  value = c(as.numeric(profile_table[1,2]), 
+            as.numeric(profile_table[1,3]),
+            as.numeric(profile_table[1,4]),
+            as.numeric(profile_table[2,2]), 
+            as.numeric(profile_table[2,3]), 
+            as.numeric(profile_table[2,4])))
+
+profile_release %>%
+  ggplot(aes(x=reorder(release, value), y=value, label = paste(100*round(value, 3), "%", sep = ''))) +
+  geom_col(fill = 'lightblue') + 
+  facet_wrap(~kind) + 
+  geom_text(nudge_y = 0.005, color = 'red')+
+  labs(title = 'profile visit rate', 
+       subtitle = 'Before : 2022/09/09 ~ 2022/09/22, After : 2022/09/23 ~ 2022/10/09',
+       x = 'Release')
+
+
+profile_rate = profile_unique %>%
+  mutate(date = as.Date(date)) %>%
+  select(-X) %>%
+  left_join(user_visit) %>%
+  filter(date >= '2022-08-15') %>%
+  filter(date <= '2022-10-09') %>%
+  transmute(date, profile = pageview.profile / u_visit, profile.me = pageview.profile.me / u_visit, 
+            profile.update = pageview.profile.update / u_visit)
+
+
+profile_rate %>%
+  ggplot() + 
+  geom_line(aes(x=date, y=profile, color = 'friend profile')) +
+  geom_line(aes(x=date, y=profile.me, color = 'my profile'))+
+  geom_line(aes(x=date, y=profile.update, color = 'update'))+
+  labs(y='unique page visit rate', color = 'Type', title = 'profile unique visit rate per day')+
+  geom_vline(xintercept = as.Date('2022-09-23'), color = 'purple', size = 1) +
+  geom_text(x = as.Date('2022-09-21'), y=0.4, label = 'Poke')
+
+
+```
+
+* 세 페이지 도달율은(내 프로필 방문, 남의 프로필 방문, 내 프로필 업데이트) 모두 증가 추세입니다.
+* **내 프로필 방문 비율은 47%, 친구 프로필 방문 비율은 34%, 프로필 업데이트는 19%입니다.**
+* 상대적으로 '내 프로필 업데이트'가 증가세가 약한데, 현재는 **내 프로필을 새롭게 할 요소가 부족**하기 때문으로 보입니다. **'내 프로필'을 자랑할 수 있는 것이 필요할 것 같습니다.** 
+* '랭킹'과 다르게 프로필은 - *방문만 가능하다면* 얼마든지 숫자(등수) 이외에 자랑할 거리를 본인이 만들 수 있으므로 학습과의 의존성이 낮아 학습과 분리된 재미요소로써 더 강하게 기능할 수 있습니다.
+* KPI에 도달하기 위해 추가적인 기능 개선이 필요합니다.
