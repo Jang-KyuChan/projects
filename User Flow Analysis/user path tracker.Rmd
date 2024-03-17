@@ -1,0 +1,180 @@
+---
+title: "user path tracker"
+output: html_document
+date: "2022-10-13"
+runtime: shiny
+---
+
+```{r include = FALSE}
+library(tidyverse);library(lubridate)
+library(DT)
+membership_data = read.csv('user_flow_sample_data.csv')
+today = '2022-10-12'
+
+```
+
+```{r echo = FALSE}
+fluidPage(
+inputPanel(
+  selectInput("event_list", label = 'event list', 
+              choices = c('pageview:home' = 'pageview:home', 
+                          'pageview:landing' = 'pageview:landing',
+                          'pageview:instage' = 'pageview:instage', 
+                          'pageview:game' = 'pageview:game',
+                          'pageview:mission' = 'pageview:mission', 
+                          'pageview:ranking' = 'pageview:ranking', 
+                          'pageview:arcade' = 'pageview:arcade', 
+                          'pageview:arcade/fraction' = 'pageview:arcade/fraction', 
+                          'pageview:arcade/gugudan' = 'pageview:arcade/gugudan', 
+                          'pageview:game/myroom' = 'pageview:game/myroom',
+                          'pageview:instage/custom' = 'pageview:instage/custom', 
+                          'pageview:mathworld' = 'pageview:mathworld',
+                          'pageview:curriculumworld' = 'pageview:curriculumworld', 
+                          'pageview:profile' = 'pageview:profile',
+                          'pageview:profile/me' = 'pageview:profile/me', 
+                          'pageview:profile/update' = 'pageview:profile/update',
+                          'battle - start stage' = 'battle - start stage',
+                          'start stage' = 'start stage', 
+                          'exit stage' = 'exit stage', 'poke' = 'poke', 
+                          'myroom - buy costume' = 'myroom - buy costume',
+                          'pageview:agent/registration' = 'pageview:agent/registration'),
+              selected = c('pageview:home' = 'pageview:home', 'pageview:mission' = 'pageview:mission'), multiple = TRUE),
+  selectInput("event_1", label = 'event 1', choices = c()),
+  selectInput("event_2", label = 'event 2', choices = c()),
+  selectInput("event_3", label = 'event 3', choices = c()),
+  sliderInput('additional_event', label = 'additional event (max = 4)', min = 1, max = 4, value = 1),
+  checkboxInput('duplication', label = '연속한 같은 이벤트를 다른 이벤트로 취급', value = TRUE),
+  dateRangeInput("input_date1", "Date 1:", start = '2022-09-01', end = '2022-09-30', 
+                 min = '2022-06-27', max = today),
+  dateRangeInput("input_date2", "Date 2:", start = '2022-10-01', end = today, 
+                 min = '2022-06-27', max = today),
+  checkboxGroupInput("money", "Subscription", choices = c('Premium'='Premium', 'Free-trial'='Free-trial'), 
+                     selected = c('Premium'='Premium', 'Free-trial'='Free-trial')),
+  checkboxGroupInput("activated", "Activated", 
+                     choices = c('Power'='Power', 
+                                 'Lazy'='Lazy', 
+                                 'Non-Activated'='Non-Activated'),
+                     selected = c('Power'='Power', 
+                                  'Lazy'='Lazy'))
+))
+
+
+observe({
+      updateSelectInput(session, "event_1", label = 'previous event 1', choices = c('NA' = 'NA', input$event_list))
+      updateSelectInput(session, "event_2", label = 'previous event 2', choices = c('NA' = 'NA', input$event_list)) 
+      updateSelectInput(session, "event_3", label = 'previous event 3', choices = c('NA' = 'NA', input$event_list)) 
+      
+})
+  
+data_handler <- function(min, max, input){
+  if (input$duplication == FALSE){
+    event_data = membership_data %>%
+      filter(date >= min) %>%
+      filter(date <= max) %>%
+      filter(money %in% input$money) %>%
+      filter(user_type %in% input$activated) %>%
+      group_by(session, user_id) %>%
+      filter(event_type %in% input$event_list) %>%
+      mutate(differ = (event_type != lead(event_type))) %>%
+      replace(is.na(.), TRUE) %>%
+      filter(differ == TRUE) %>%
+      mutate(event_next = lead(event_type), event_next2 = lead(event_type, 2), event_next3 = lead(event_type, 3)) %>%
+      replace(is.na(.), 'End Session')
+  }
+  else{
+    event_data = membership_data %>%
+      filter(date >= min) %>%
+      filter(date <= max) %>%
+      filter(money %in% input$money) %>%
+      filter(user_type %in% input$activated) %>%
+      group_by(session, user_id) %>%
+      filter(event_type %in% input$event_list) %>%
+      mutate(event_next = lead(event_type), event_next2 = lead(event_type, 2), event_next3 = lead(event_type, 3)) %>%
+      replace(is.na(.), 'End Session')
+  }
+
+  return(event_data)
+}
+
+summarize_event_data <- function(data, group_vars, filter_vars = NULL) {
+  data %>%
+    group_by(across(all_of(group_vars))) %>%
+    summarize(
+      event_cnt = n(),
+      unique = paste(n_distinct(user_id), '명', sep = '')
+    ) %>%
+    ungroup() %>%
+    mutate(
+      rate = paste(round(100 * event_cnt / sum(event_cnt), 1), "%", sep = '')
+    ) %>%
+    arrange(desc(event_cnt)) %>%
+    head(30)
+}
+
+summarize_data <- function(data, input) {
+  if (input$event_1 == 'NA') {
+    if (input$additional_event == 4) {
+      summarize_event_data(data, c("event_type", "event_next", "event_next2", "event_next3"))
+    } else if (input$additional_event == 3) {
+      summarize_event_data(data, c("event_type", "event_next", "event_next2"))
+    } else if (input$additional_event == 2) {
+      if (input$event_2 == 'NA') {
+        summarize_event_data(data, c("event_type", "event_next"))
+      } else if (input$event_3 == 'NA') {
+        summarize_event_data(data, c("event_type", "event_next"), filter_vars = list(event_next = input$event_2))
+      }
+    } else if (input$additional_event == 1) {
+      if (input$event_2 == 'NA') {
+        summarize_event_data(data, c("event_type"))
+      } else if (input$event_3 == 'NA') {
+        summarize_event_data(data, c("event_type", "event_next"), filter_vars = list(event_next = input$event_2))
+      }
+    }
+  } else {
+    if (input$event_2 == 'NA') {
+      if (input$additional_event >= 3) {
+        summarize_event_data(data, c("event_type", "event_next", "event_next2", "event_next3"), filter_vars = list(event_type = input$event_1))
+      } else if (input$additional_event == 2) {
+        summarize_event_data(data, c("event_type", "event_next", "event_next2"), filter_vars = list(event_type = input$event_1))
+      } else if (input$additional_event == 1) {
+        summarize_event_data(data, c("event_type", "event_next"), filter_vars = list(event_type = input$event_1))
+      }
+    } else {
+      if (input$event_3 == 'NA') {
+        if (input$additional_event >= 2) {
+          summarize_event_data(data, c("event_type", "event_next", "event_next2", "event_next3"), filter_vars = list(event_type = input$event_1, event_next = input$event_2))
+        } else if (input$additional_event == 1) {
+          summarize_event_data(data, c("event_type", "event_next", "event_next2"), filter_vars = list(event_type = input$event_1, event_next = input$event_2))
+        }
+      } else {
+        summarize_event_data(data, c("event_type", "event_next", "event_next2", "event_next3"), filter_vars = list(event_type = input$event_1, event_next = input$event_2, event_next2 = input$event_3))
+      }
+    }
+  }
+}
+
+fluidPage(
+h4("Date 1 data"),
+
+renderTable({
+  min <- format(input$input_date1[1])
+  max <- format(input$input_date1[2])
+
+  event_data1 = data_handler(min, max, input)
+  summarize_data(event_data1, input)
+}),
+
+h4("Date 2 data"),
+renderTable({
+  min <- format(input$input_date2[1])
+  max <- format(input$input_date2[2])
+  event_data2 = data_handler(min, max, input)
+  summarize_data(event_data2, input)
+})
+)
+```
+
+
+
+
+
