@@ -8,3 +8,11 @@
 
 ### 졸업 논문
 매쓰팡 내 개인화 프로젝트를 기반으로 작성한 졸업 논문입니다.
+
+### missing value interpolation
+DACON 2024년 5월 챌린지입니다. 점수 2.78238로 최종 13위를 기록하였습니다.
+Density를 활용해 missing data를 채우는 방법을 활용했습니다.
+
+### web news recommendation
+DACON 2024년 6월 챌린지입니다. (진행 중)
+ALS를 활용해 user-item sparse matrix를 채우는 방법을 이용했습니다.
